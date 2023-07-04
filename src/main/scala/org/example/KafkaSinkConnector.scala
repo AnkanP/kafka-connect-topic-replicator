@@ -42,7 +42,7 @@ import java.util.Collections
 
        // Only one input partition makes sense.
        val config = new util.HashMap[String, String]()
-       config.putAll(configProps)
+       config.putAll(this.configProps)
        configs.add(config)
 
      }

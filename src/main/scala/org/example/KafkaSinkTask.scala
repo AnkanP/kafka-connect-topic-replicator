@@ -21,8 +21,10 @@ class KafkaSinkTask extends SinkTask{
   var producerConfig: String = ""
   var bootstrapServers: String = ""
   var schemaRegistryUrl: String = ""
+  var taskProperties: Properties = new Properties()
 
   /* lazy objects get evaluated at variable call */
+
     lazy val properties: Properties = buildProperties
     lazy val kafkaProducer: KafkaProducer[Object, Object] = new KafkaProducer(this.properties)
 
@@ -40,10 +42,13 @@ class KafkaSinkTask extends SinkTask{
 
   override def start(map: util.Map[String, String]): Unit = {
 
+    map.foreach {case (key,value) => this.taskProperties.setProperty(key,value)}
+
     this.topic = map.get(KafkaSinkConfig.DESTINATION_TOPIC)
     this.producerConfig = map.get(KafkaSinkConfig.PRODUCER_CONFIG)
     this.bootstrapServers = map.get(KafkaSinkConfig.DESTINATION_BOOTSTRAP_SERVERS)
     this.schemaRegistryUrl = map.get(KafkaSinkConfig.DESTINATION_SCHEMA_REGISTRY_URL)
+
   }
 
   override def put(collection: util.Collection[SinkRecord]): Unit = {
@@ -56,7 +61,9 @@ class KafkaSinkTask extends SinkTask{
       val valSchema = record.valueSchema()
       val keySchema = record.keySchema()
 
-     val avroData = new AvroData(new AvroDataConfig(this.properties))
+      log.info("PROPERTIES:" + this.taskProperties)
+
+     val avroData = new AvroData(new AvroDataConfig(this.taskProperties))
 
       //convert connect schema to avro schema
       //val avroValSchema = avroData.fromConnectSchema(valSchema)
