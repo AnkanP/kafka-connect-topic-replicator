@@ -3,11 +3,13 @@ package org.example
 import io.confluent.connect.avro.{AvroData, AvroDataConfig}
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.producer._
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.{KafkaException, TopicPartition}
 import org.apache.kafka.common.header.internals.RecordHeader
-import org.apache.kafka.connect.sink.{SinkRecord, SinkTask}
+import org.apache.kafka.connect.errors.ConnectException
+import org.apache.kafka.connect.sink.{SinkRecord, SinkTask, SinkTaskContext}
 import org.slf4j.LoggerFactory
 
+import java.time.Duration
 import java.util
 import java.util.Properties
 import scala.collection.JavaConversions._
@@ -41,18 +43,18 @@ class KafkaSinkTask extends SinkTask{
 
 
   override def start(map: util.Map[String, String]): Unit = {
-
+    log.info("INSIDE START: {}")
     map.foreach {case (key,value) => this.taskProperties.setProperty(key,value)}
 
-    this.topic = map.get(KafkaSinkConfig.DESTINATION_TOPIC)
-    this.producerConfig = map.get(KafkaSinkConfig.PRODUCER_CONFIG)
-    this.bootstrapServers = map.get(KafkaSinkConfig.DESTINATION_BOOTSTRAP_SERVERS)
-    this.schemaRegistryUrl = map.get(KafkaSinkConfig.DESTINATION_SCHEMA_REGISTRY_URL)
+    topic = map.get(KafkaSinkConfig.DESTINATION_TOPIC)
+    producerConfig = map.get(KafkaSinkConfig.PRODUCER_CONFIG)
+    bootstrapServers = map.get(KafkaSinkConfig.DESTINATION_BOOTSTRAP_SERVERS)
+    schemaRegistryUrl = map.get(KafkaSinkConfig.DESTINATION_SCHEMA_REGISTRY_URL)
 
   }
 
   override def put(collection: util.Collection[SinkRecord]): Unit = {
-
+    log.info("INSIDE PUT: {}")
     for (record <- collection) {
       log.info("record : {}",  record.value)
 
@@ -61,9 +63,9 @@ class KafkaSinkTask extends SinkTask{
       val valSchema = record.valueSchema()
       val keySchema = record.keySchema()
 
-      log.info("PROPERTIES:" + this.taskProperties)
+      log.info("PROPERTIES:" + taskProperties)
 
-     val avroData = new AvroData(new AvroDataConfig(this.taskProperties))
+     val avroData = new AvroData(new AvroDataConfig(taskProperties))
 
       //convert connect schema to avro schema
       //val avroValSchema = avroData.fromConnectSchema(valSchema)
@@ -76,6 +78,7 @@ class KafkaSinkTask extends SinkTask{
 
       //4. Send producer record
 
+
       val producerRecord = new ProducerRecord[Object, Object](topic, keyObj, valObj)
 
 
@@ -84,36 +87,74 @@ class KafkaSinkTask extends SinkTask{
         producerRecord.headers().add(new RecordHeader(header.key(), header.value().asInstanceOf[Array[Byte]]))
       }
 
-      //producerRecord.headers().add(new RecordHeader("timestamp", System.currentTimeMillis().toString.getBytes()))
-      this.kafkaProducer.send(producerRecord,callback)
-    }
+      kafkaProducer.send(producerRecord,callback)
+     // try this.kafkaProducer.send(producerRecord,callback)
+     // catch {
+     //   case e: Exception =>
+     //       log.error(e.getMessage())
+     //       e.printStackTrace()
+     //       throw new ConnectException(e.getMessage)
+     //     }
+     // finally this.stop()
+      }
   }
 
   override def stop(): Unit = {
     log.info("Shutting down kafka producer!!")
-    this.kafkaProducer.close()
+    try {
+    if(kafkaProducer !=null)  kafkaProducer.close(Duration.ofSeconds(30))
+    } catch {
+      case e: Exception =>
+        log.error(e.getMessage)
+        throw new ConnectException(e.getMessage)
+    }
+  }
+
+
+  override def initialize(context: SinkTaskContext): Unit = {
+    log.info("INSIDE INITIALIZE: {}")
+    super.initialize(context)
+  }
+
+  override def open(partitions: util.Collection[TopicPartition]): Unit = {
+    log.info("INSIDE OPEN: {}")
+    super.open(partitions)
+  }
+
+  override def close(partitions: util.Collection[TopicPartition]): Unit = {
+    log.info("INSIDE CLOSE: {}")
+    try {
+      if (kafkaProducer != null) kafkaProducer.close(Duration.ofSeconds(30))
+    } catch {
+      case e: Exception =>
+        log.error(e.getMessage)
+        throw new ConnectException(e.getMessage)
+    }
+    super.close(partitions)
   }
 
   override def version(): String = {
+    log.info("INSIDE VERSION: {}")
     new KafkaSinkConnector().version()
   }
 
   override def flush(currentOffsets: util.Map[TopicPartition, OffsetAndMetadata]): Unit = {
     log.info("Flushing kafka producer for {}")
-    this.kafkaProducer.flush()
+    kafkaProducer.flush()
   }
 
   def buildProperties: Properties = {
+    log.info("INSIDE BUILD PROPERTIES: {}")
     val props: Properties = new Properties
 
-    val hashMap = this.producerConfig.split(',').map(_.split("=")).map {case Array(k,v) => (k,v) }.toMap
+    val hashMap = producerConfig.split(',').map(_.split("=")).map {case Array(k,v) => (k,v) }.toMap
 
     val javaMap: util.Map[_,_] = mapAsJavaMap(hashMap)
 
     props.putAll(javaMap)
 
-    props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, this.bootstrapServers)
-    props.setProperty("schema.registry.url", this.schemaRegistryUrl)
+    props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
+    props.setProperty("schema.registry.url", schemaRegistryUrl)
 
     props
   }

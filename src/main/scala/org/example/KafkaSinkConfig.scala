@@ -36,15 +36,14 @@ object KafkaSinkConfig{
     val config = new ConfigDef
     config.define(DESTINATION_TOPIC, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, DESTINATION_TOPIC_DOC)
       .define(DESTINATION_BOOTSTRAP_SERVERS, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, DESTINATION_BOOTSTRAP_SERVERS_DOC)
-      .define(DESTINATION_KEY_SERIALIZER, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, DESTINATION_KEY_SERIALIZER_DOC)
-      .define(DESTINATION_VALUE_SERIALIZER, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, DESTINATION_VALUE_SERIALIZER_DOC)
       .define(DESTINATION_SCHEMA_REGISTRY_URL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, DESTINATION_SCHEMA_REGISTRY_URL_DOC)
       .define(PRODUCER_CONFIG, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH, "kafka producer configs")
       .define("enhanced.avro.schema.support", ConfigDef.Type.STRING, "false",ConfigDef.Importance.LOW, "Avro data configs")
       .define("schemas.cache.config", ConfigDef.Type.STRING, "1000",ConfigDef.Importance.LOW, "Avro data configs")
       .define("connect.meta.data", ConfigDef.Type.STRING,"true", ConfigDef.Importance.LOW, "Avro data configs")
 
-
+    //.define(DESTINATION_KEY_SERIALIZER, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, DESTINATION_KEY_SERIALIZER_DOC)
+    // .define(DESTINATION_VALUE_SERIALIZER, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, DESTINATION_VALUE_SERIALIZER_DOC)
 
   }
 

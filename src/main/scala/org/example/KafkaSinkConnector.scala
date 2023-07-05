@@ -52,6 +52,7 @@ import java.util.Collections
 
    override def stop(): Unit = {
     // Nothing to do since FileStreamSinkConnector has no background monitoring.
+
   }
 
 
