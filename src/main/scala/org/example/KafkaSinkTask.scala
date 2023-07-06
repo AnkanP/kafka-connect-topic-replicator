@@ -3,6 +3,7 @@ package org.example
 import io.confluent.connect.avro.{AvroData, AvroDataConfig}
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.producer._
+import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.{KafkaException, TopicPartition}
 import org.apache.kafka.common.header.internals.RecordHeader
 import org.apache.kafka.connect.errors.ConnectException
@@ -35,7 +36,11 @@ class KafkaSinkTask extends SinkTask{
  lazy val callback: Callback = new Callback {
     override def onCompletion(metadata: RecordMetadata, exception: Exception): Unit = {
       Option(exception) match {
-        case Some(e) => println(s"Failed to produce: ${e.printStackTrace()}")
+        case Some(e) => {
+          println(s"Failed to produce: ${e.printStackTrace()}")
+          throw new ConnectException(e.getMessage)
+
+        }
         case None => println(s"Produced record at $metadata")
       }
     }
@@ -76,16 +81,24 @@ class KafkaSinkTask extends SinkTask{
       val keyObj: Object = avroData.fromConnectData(keySchema,record.key())
 
 
+
+
+
+
       //4. Send producer record
 
 
-      val producerRecord = new ProducerRecord[Object, Object](topic, keyObj, valObj)
+      val producerRecord = new ProducerRecord[Object, Object](topic, null,record.timestamp(),keyObj, valObj)
+
+    //  val header: Iterable[Header] = null
 
 
       // Add headers
       for(header <- record.headers()){
         producerRecord.headers().add(new RecordHeader(header.key(), header.value().asInstanceOf[Array[Byte]]))
+
       }
+
 
       kafkaProducer.send(producerRecord,callback)
      // try this.kafkaProducer.send(producerRecord,callback)
