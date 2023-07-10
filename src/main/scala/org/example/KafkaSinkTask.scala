@@ -16,6 +16,7 @@ import java.util.Properties
 import scala.collection.JavaConversions._
 
 
+@throws(classOf[ConnectException])
 class KafkaSinkTask extends SinkTask{
 
   private val log = LoggerFactory.getLogger(classOf[KafkaSinkTask])
@@ -33,12 +34,14 @@ class KafkaSinkTask extends SinkTask{
 
 
   //3. Send the record to kafka
- lazy val callback: Callback = new Callback {
+  @throws(classOf[ConnectException])
+  val callback: Callback = new Callback {
     override def onCompletion(metadata: RecordMetadata, exception: Exception): Unit = {
       Option(exception) match {
         case Some(e) => {
-          println(s"Failed to produce: ${e.printStackTrace()}")
-          throw new ConnectException(e.getMessage)
+          println("Failed to produce:" )
+          //throw new ConnectException(e.getMessage)
+          throw exception
 
         }
         case None => println(s"Produced record at $metadata")
@@ -58,10 +61,11 @@ class KafkaSinkTask extends SinkTask{
 
   }
 
+  @throws(classOf[ConnectException])
   override def put(collection: util.Collection[SinkRecord]): Unit = {
     log.info("INSIDE PUT: {}")
     for (record <- collection) {
-      log.info("record : {}",  record.value)
+
 
 
       //connect schema
@@ -70,16 +74,21 @@ class KafkaSinkTask extends SinkTask{
 
       log.info("PROPERTIES:" + taskProperties)
 
+
+
      val avroData = new AvroData(new AvroDataConfig(taskProperties))
 
       //convert connect schema to avro schema
-      //val avroValSchema = avroData.fromConnectSchema(valSchema)
-      //val avroKeySchema = avroData.fromConnectSchema(keySchema)
+      val avroValSchema = avroData.fromConnectSchema(valSchema)
+      val avroKeySchema = avroData.fromConnectSchema(keySchema)
+
+
+
+
 
       //convert to connect record to avro object
       val valObj: Object = avroData.fromConnectData(valSchema,record.value())
       val keyObj: Object = avroData.fromConnectData(keySchema,record.key())
-
 
 
 
@@ -95,23 +104,28 @@ class KafkaSinkTask extends SinkTask{
 
       // Add headers
       for(header <- record.headers()){
+        //producerRecord.headers().add(new RecordHeader(header.key(), header.value().asInstanceOf[Array[Byte]]))
         producerRecord.headers().add(new RecordHeader(header.key(), header.value().asInstanceOf[Array[Byte]]))
 
       }
 
 
-      kafkaProducer.send(producerRecord,callback)
-     // try this.kafkaProducer.send(producerRecord,callback)
-     // catch {
-     //   case e: Exception =>
-     //       log.error(e.getMessage())
-     //       e.printStackTrace()
-     //       throw new ConnectException(e.getMessage)
-     //     }
-     // finally this.stop()
+      //kafkaProducer.send(producerRecord)
+      try this.kafkaProducer.send(producerRecord,callback)
+      catch {
+        case e: Exception =>
+            log.error(e.getMessage())
+            e.printStackTrace()
+          log.error("CAUGHT IT !!!!")
+            throw new ConnectException(e.getMessage)
+          }
+    // // finally this.stop()
       }
   }
 
+
+
+  @throws(classOf[ConnectException])
   override def stop(): Unit = {
     log.info("Shutting down kafka producer!!")
     try {
@@ -126,14 +140,28 @@ class KafkaSinkTask extends SinkTask{
 
   override def initialize(context: SinkTaskContext): Unit = {
     log.info("INSIDE INITIALIZE: {}")
+
+    for (x <- context.assignment()) {
+      log.info("PARTITIONS ASSIGNED: " + x.partition())
+    }
     super.initialize(context)
+
+
+
+
   }
 
   override def open(partitions: util.Collection[TopicPartition]): Unit = {
     log.info("INSIDE OPEN: {}")
-    super.open(partitions)
+
+    for(partition <- partitions){
+      log.info("PARTITIONS OPENED: " + partition.partition())
+    }
+
+    super.open(partitions) // depreacted
   }
 
+  @throws(classOf[ConnectException])
   override def close(partitions: util.Collection[TopicPartition]): Unit = {
     log.info("INSIDE CLOSE: {}")
     try {
@@ -151,9 +179,19 @@ class KafkaSinkTask extends SinkTask{
     new KafkaSinkConnector().version()
   }
 
+
+  @throws(classOf[ConnectException])
   override def flush(currentOffsets: util.Map[TopicPartition, OffsetAndMetadata]): Unit = {
-    log.info("Flushing kafka producer for {}")
-    kafkaProducer.flush()
+    log.info("Flushing the consumer offsets {}")
+    // // No-op. The connector is managing the offsets
+    //DONT IMPLEMENT FLUSH
+ //  try{
+ //    kafkaProducer.flush()
+ //  }catch {
+ //    case e: Exception =>
+ //      throw new ConnectException(e.getMessage)
+ //  }
+//
   }
 
   def buildProperties: Properties = {
