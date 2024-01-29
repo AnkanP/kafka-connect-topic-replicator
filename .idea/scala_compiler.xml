@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ScalaCompilerConfiguration">
+    <profile name="Maven 1" modules="kafka-connect-topic-replicator">
+      <parameters>
+        <parameter value="-dependencyfile" />
+        <parameter value="\\wsl$\Ubuntu\home\crawlerp\confluent_projects_dev\kafka-connect-topic-replicator\target\.scala_dependencies" />
+      </parameters>
+    </profile>
+  </component>
+</project>

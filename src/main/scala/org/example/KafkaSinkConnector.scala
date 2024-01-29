@@ -1,20 +1,90 @@
 package org.example
 
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig}
 import org.apache.kafka.common.config.ConfigDef
-import org.apache.kafka.common.utils.AppInfoParser
 import org.apache.kafka.connect.connector.Task
+import org.apache.kafka.connect.errors.ConnectException
 import org.apache.kafka.connect.sink.SinkConnector
-import org.slf4j.LoggerFactory
+import org.slf4j.{Logger, LoggerFactory}
 
 import java.util
-import java.util.Collections
+import java.util.{Collections, Properties}
+import scala.collection.JavaConversions.mapAsJavaMap
 
+object KafkaSinkConnector{
+
+  var counter = 0
+  lazy val props: Properties = new Properties
+  var kafkaProducer: KafkaProducer[Object, Object] = null
+  private final val logger1: Logger = LoggerFactory.getLogger(classOf[KafkaSinkConnector])
+
+
+  private final def registerProducerProperties(producerConfig: String, bootstrapServers: String, schemaRegistryUrl: String) = {
+    val hashMap = producerConfig.split(',').map(_.split("=")).map { case Array(k, v) => (k, v) }.toMap
+    val javaMap: util.Map[_, _] = mapAsJavaMap(hashMap)
+    props.putAll(javaMap)
+    props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers)
+    props.setProperty("schema.registry.url", schemaRegistryUrl)
+
+  }
+
+   def registerKafkaProducerNew(): Unit = {
+    counter = counter + 1
+    println("CALLING FUNCTION CALL NEW: " + counter.toString)
+    //deregisterKafkaProducerInstance()
+     if(kafkaProducer == null) {
+       kafkaProducer =  new KafkaProducer(props)
+     }
+
+  }
+
+  def getKafkaProducerInstance: KafkaProducer[Object, Object] = {
+    println("CALLING INSIDE PRODUCER CALL: " + counter.toString)
+
+    try{
+      this.kafkaProducer
+    } catch {
+      case e: Exception => {
+        logger1.error(e.getMessage)
+        throw new ConnectException(e.getMessage)
+      }
+
+    }
+
+  }
+
+  def deregisterKafkaProducerInstance(): Unit = {
+    println("CALLING INSIDE PRODUCER CLOSE: " + counter.toString)
+
+    try {
+      this.kafkaProducer.close()
+    } catch {
+      case e: Exception =>{
+        logger1.info("Unable to close producer!!. Perhaps it's closed. Do proper Exception catch")
+        logger1.error(e.getMessage)
+      }
+        //throw new ConnectException(e.getMessage)
+    } finally kafkaProducer = null
+
+
+    //this.kafkaProducer = null
+  }
+
+
+
+}
 
  class KafkaSinkConnector extends SinkConnector{
 
-  final val logger = LoggerFactory.getLogger(classOf[KafkaSinkConnector])
-  var connectorConfig: KafkaSinkConfig = null
-  var configProps: util.Map[String, String] = null
+   private final val logger: Logger = LoggerFactory.getLogger(classOf[KafkaSinkConnector])
+   private var connectorConfig: KafkaSinkConfig = null
+   var configProps: util.Map[String, String] = null
+   // var kafkaProducer: KafkaProducer[Object, Object] = null
+   var producerConfig = ""
+   var bootstrapServers = ""
+   var schemaRegistryUrl = ""
+
+   //final object x = 'a'
 
   override def start(props: util.Map[String, String]): Unit = {
 
@@ -22,6 +92,17 @@ import java.util.Collections
     this.connectorConfig =  new KafkaSinkConfig(props)
 
     this.configProps = Collections.unmodifiableMap(props)
+
+     this.producerConfig = props.get(KafkaSinkConfig.PRODUCER_CONFIG)
+     this.bootstrapServers = props.get(KafkaSinkConfig.DESTINATION_BOOTSTRAP_SERVERS)
+     this.schemaRegistryUrl = props.get(KafkaSinkConfig.DESTINATION_SCHEMA_REGISTRY_URL)
+    //this.kafkaProducer =
+    KafkaSinkConnector.registerProducerProperties(producerConfig, bootstrapServers, schemaRegistryUrl)
+    KafkaSinkConnector.registerKafkaProducerNew()
+
+    /** Initialize producer */
+    //CustomKafkaProducer.registerKafkaProducerNew(producerConfig, bootstrapServers, schemaRegistryUrl)
+    //KafkaSinkConnector.registerKafkaProducerNew(producerConfig, bootstrapServers, schemaRegistryUrl)
 
   }
 
@@ -38,9 +119,21 @@ import java.util.Collections
    override def taskConfigs(maxTasks: Int): util.List[util.Map[String, String]] = {
      val configs = new util.ArrayList[util.Map[String, String]]
 
+     println("INSIDE TASKS CONFIGS!!!")
+
+    //if( KafkaSinkConnector.getKafkaProducerInstance == null) {
+    //  println("Registering New Producer INSTANCE!!!")
+    // KafkaSinkConnector.registerKafkaProducerNew(producerConfig, bootstrapServers, schemaRegistryUrl)
+   // }
+     //else
+     //{
+     //  logger.info("INSIDE TASK CONFIG ELSE")
+     //  KafkaSinkConnector.deregisterKafkaProducerInstance
+     //  KafkaSinkConnector.registerKafkaProducerNew(producerConfig, bootstrapServers, schemaRegistryUrl)
+     //}
+
      for (i <- 0 until maxTasks) {
 
-       // Only one input partition makes sense.
        val config = new util.HashMap[String, String]()
        config.putAll(this.configProps)
        configs.add(config)
@@ -52,16 +145,18 @@ import java.util.Collections
 
    override def stop(): Unit = {
     // Nothing to do since FileStreamSinkConnector has no background monitoring.
-
   }
-
 
    // The below method ensures the validation happens while submitting the connect job.
   override def config(): ConfigDef = {
     KafkaSinkConfig.CONFIG_DEF
   }
 
-  override def version(): String = AppInfoParser.getVersion
-
+  override def version(): String = {
+    //AppInfoParser.getVersion
+    Version.getVersion
 
 }
+
+
+ }
