@@ -9,11 +9,8 @@ import org.apache.kafka.connect.errors.{ConnectException, RetriableException}
 import org.apache.kafka.connect.sink.{SinkRecord, SinkTask, SinkTaskContext}
 
 import org.slf4j.{Logger, LoggerFactory}
-
-import java.time.Duration
 import java.util
 import java.util.Properties
-import java.util.concurrent.Future
 import scala.collection.JavaConversions._
 
 
@@ -22,9 +19,26 @@ import scala.collection.JavaConversions._
  class KafkaSinkTask extends SinkTask{
 
   private val log: Logger = LoggerFactory.getLogger(classOf[KafkaSinkTask])
-  private val taskProperties: Properties = new Properties()
+  val taskProperties: Properties = new Properties()
+
+  private object initializationObject {
+    lazy val TOPIC: String = taskProperties.getProperty(KafkaSinkConfig.DESTINATION_TOPIC)
+    private lazy val avroDataConfigs: String = taskProperties.getProperty(KafkaSinkConfig.PRODUCER_AVRO_CONFIG)
+    private lazy val configMap: Map[String,String] = avroDataConfigs.split(',').map(_.split("=")).map { case Array(k, v) => (k, v) }.toMap
+    private lazy val avroDataConfigProps: Properties = new Properties
+    configMap.foreach {case (key,value) => avroDataConfigProps.setProperty(key,value)}
+    private lazy val avroDataConfig: AvroDataConfig = new AvroDataConfig(avroDataConfigProps)
+    lazy val avroData: AvroData = new AvroData(avroDataConfig)
+
+  }
+
+
   //private var kafkaProducer: KafkaProducer[Object, Object] = null
 
+  /** CHANGES */
+  //private var avroDataConfig: AvroDataConfig = _
+  //private var avroData: AvroData = _
+  //private var TOPIC: String = _
 
   /** call back implementation */
   @throws(classOf[ConnectException])
@@ -44,12 +58,26 @@ import scala.collection.JavaConversions._
 
   override def start(map: util.Map[String, String]): Unit = {
     log.info("INSIDE START!!!!")
-    map.foreach {case (key,value) => this.taskProperties.setProperty(key,value)}
+    //map.foreach {case (key,value) => taskProperties.setProperty(key,value)}
+    map.foreach {case (key,value) => taskProperties.setProperty(key,value)}
     log.debug("PROPERTIES:" + taskProperties)
 
-    val producerConfig = map.get(KafkaSinkConfig.PRODUCER_CONFIG)
-    val bootstrapServers = map.get(KafkaSinkConfig.DESTINATION_BOOTSTRAP_SERVERS)
-    val schemaRegistryUrl = map.get(KafkaSinkConfig.DESTINATION_SCHEMA_REGISTRY_URL)
+    //val producerConfig = map.get(KafkaSinkConfig.PRODUCER_CONFIG)
+    //val bootstrapServers = map.get(KafkaSinkConfig.DESTINATION_BOOTSTRAP_SERVERS)
+    //val schemaRegistryUrl = map.get(KafkaSinkConfig.DESTINATION_SCHEMA_REGISTRY_URL)
+
+    initializationObject
+
+    /* INITIALIZATION */
+    //TOPIC = taskProperties.getProperty(KafkaSinkConfig.DESTINATION_TOPIC)
+    //val avroDataConfigMap = map.get(KafkaSinkConfig.PRODUCER_AVRO_CONFIG)
+    //val avroDataConfigProps: Properties = new Properties
+
+    //val hashMap = avroDataConfigMap.split(',').map(_.split("=")).map { case Array(k, v) => (k, v) }.toMap
+    //val javaMap: util.Map[_, _] = mapAsJavaMap(hashMap)
+    //avroDataConfigProps.putAll(javaMap)
+    //avroDataConfig = new AvroDataConfig(avroDataConfigProps)
+    //avroData = new AvroData(avroDataConfig)
 
     try{
       if (KafkaSinkConnector.getKafkaProducerInstance == null) {
@@ -77,19 +105,25 @@ import scala.collection.JavaConversions._
       val valSchema = record.valueSchema()
       val keySchema = record.keySchema()
 
-      val avroData = new AvroData(new AvroDataConfig(taskProperties))
+      //val avroData = new AvroData(new AvroDataConfig(taskProperties))
 
       //convert connect schema to avro schema
-      val avroValSchema = avroData.fromConnectSchema(valSchema)
-      val avroKeySchema = avroData.fromConnectSchema(keySchema)
+      val avroValSchema = initializationObject.avroData.fromConnectSchema(valSchema)
+      val avroKeySchema = initializationObject.avroData.fromConnectSchema(keySchema)
+
+      print("VALUE SCHEMA: " + avroValSchema.toString(true))
+      print("KEY SCHEMA: " + avroKeySchema.toString(true))
 
       //convert to connect record to avro object
-      val valObj: Object = avroData.fromConnectData(valSchema,record.value())
-      val keyObj: Object = avroData.fromConnectData(keySchema,record.key())
+      val valObj: Object = initializationObject.avroData.fromConnectData(valSchema,record.value())
+      val keyObj: Object = initializationObject.avroData.fromConnectData(keySchema,record.key())
+
+      print("VALUE : " + valObj.toString)
+      print("KEY : " + keyObj.toString)
 
       //4. Send producer record
-      val  topic = taskProperties.getProperty(KafkaSinkConfig.DESTINATION_TOPIC)
-      val producerRecord = new ProducerRecord[Object, Object](topic, null,record.timestamp(),keyObj, valObj)
+     // val  topic = taskProperties.getProperty(KafkaSinkConfig.DESTINATION_TOPIC)
+      val producerRecord = new ProducerRecord[Object, Object](initializationObject.TOPIC, null,record.timestamp(),keyObj, valObj)
 
       // Add headers
       for(header <- record.headers()){
@@ -133,7 +167,7 @@ import scala.collection.JavaConversions._
     log.info("INSIDE STOP!!!!")
     log.info("Shutting down kafka producer!!")
     try {
-      KafkaSinkConnector.deregisterKafkaProducerInstance
+      KafkaSinkConnector.deregisterKafkaProducerInstance()
     } catch {
       case e: Exception =>
         log.error(e.getMessage)
@@ -182,7 +216,7 @@ import scala.collection.JavaConversions._
   override def close(partitions: util.Collection[TopicPartition]): Unit = {
     log.info("INSIDE CLOSE!!!!")
     try {
-      KafkaSinkConnector.deregisterKafkaProducerInstance
+      KafkaSinkConnector.deregisterKafkaProducerInstance()
     } catch {
       case e: Exception =>
         log.error(e.getMessage)

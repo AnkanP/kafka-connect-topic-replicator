@@ -4,9 +4,10 @@ import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig}
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.connect.connector.Task
 import org.apache.kafka.connect.errors.ConnectException
-import org.apache.kafka.connect.sink.SinkConnector
+import org.apache.kafka.connect.sink.{SinkConnector, SinkConnectorContext}
 import org.slf4j.{Logger, LoggerFactory}
 
+import java.time.Duration
 import java.util
 import java.util.{Collections, Properties}
 import scala.collection.JavaConversions.mapAsJavaMap
@@ -86,7 +87,11 @@ object KafkaSinkConnector{
 
    //final object x = 'a'
 
-  override def start(props: util.Map[String, String]): Unit = {
+   override def context(): SinkConnectorContext = super.context()
+
+   context()
+
+   override def start(props: util.Map[String, String]): Unit = {
 
    // When the connector starts, this method is called which provides a new instance of our custom configuration to the kafka connect framework
     this.connectorConfig =  new KafkaSinkConfig(props)
