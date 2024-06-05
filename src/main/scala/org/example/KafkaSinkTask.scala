@@ -7,8 +7,8 @@ import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.internals.RecordHeader
 import org.apache.kafka.connect.errors.{ConnectException, RetriableException}
 import org.apache.kafka.connect.sink.{SinkRecord, SinkTask, SinkTaskContext}
-
 import org.slf4j.{Logger, LoggerFactory}
+
 import java.util
 import java.util.Properties
 import scala.collection.JavaConversions._
@@ -19,6 +19,7 @@ import scala.collection.JavaConversions._
  class KafkaSinkTask extends SinkTask{
 
   private val log: Logger = LoggerFactory.getLogger(classOf[KafkaSinkTask])
+
   val taskProperties: Properties = new Properties()
 
   private object initializationObject {

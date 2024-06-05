@@ -29,6 +29,9 @@ object KafkaSinkConfig{
   final val PRODUCER_CONFIG = "kafka.producer.configs"
   final val PRODUCER_AVRO_CONFIG = "kafka.producer.avro.configs"
 
+  final val MAX_RETRIES = "max.batch.retries"
+  final val MAX_RETRIES_BACKOFF_MS = "max.batch.retries.backoff.ms"
+
   def baseConfigDef: ConfigDef = {
     val config = new ConfigDef
     config.define(DESTINATION_TOPIC, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, DESTINATION_TOPIC_DOC)
@@ -36,6 +39,8 @@ object KafkaSinkConfig{
       .define(DESTINATION_SCHEMA_REGISTRY_URL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, DESTINATION_SCHEMA_REGISTRY_URL_DOC)
       .define(PRODUCER_CONFIG, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH, "kafka producer configs")
       .define(PRODUCER_AVRO_CONFIG, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH, "kafka producer avro configs")
+      .define(MAX_RETRIES, ConfigDef.Type.INT, ConfigDef.Importance.HIGH, "max.batch.retries")
+      .define(MAX_RETRIES_BACKOFF_MS, ConfigDef.Type.LONG, ConfigDef.Importance.HIGH, "max.batch.retries.backoff.ms")
       //.define("enhanced.avro.schema.support", ConfigDef.Type.STRING, "false",ConfigDef.Importance.LOW, "Avro data configs")
       //.define("schemas.cache.config", ConfigDef.Type.STRING, "1000",ConfigDef.Importance.LOW, "Avro data configs")
       //.define("connect.meta.data", ConfigDef.Type.STRING,"true", ConfigDef.Importance.LOW, "Avro data configs")

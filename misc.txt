@@ -1,0 +1,53 @@
+EBUG [raw2data-test|task-0] [Consumer clientId=connector-consumer-raw2data-test-0, groupId=connect-raw2data-test] Sending FETCH request with header RequestHeader(apiKey=FETCH, apiVersion=12, clientId=connector-consumer-raw2data-test-0, correlationId=1302) and timeout 30000 to node 1: FetchRequestData(clusterId=null, replicaId=-1, maxWaitMs=500, minBytes=1, maxBytes=52428800, isolationLevel=0, sessionId=216724654, sessionEpoch=1104, topics=[], forgottenTopicsData=[], rackId='') (org.apache.kafka.clients.NetworkClient:521)
+[2024-05-30 20:59:18,963] INFO [AdminClient clientId=adminclient-10] Node 1 disconnected. (org.apache.kafka.clients.NetworkClient:937)
+
+
+
+aused by: org.apache.kafka.connect.errors.ConnectException: Topic customer-data not present in metadata after 60000 ms
+
+
+The below error received from call back.
+
+[2024-05-30 21:02:09,521] DEBUG [raw2data-test|task-0] [Producer clientId=producer-5] Exception occurred during message send: (org.apache.kafka.clients.producer.KafkaProducer:1060)
+org.apache.kafka.common.errors.TimeoutException: Topic customer-data not present in metadata after 60000 ms.
+Failed to produce:()
+
+
+
+
+[2024-05-30 21:13:40,803] INFO [raw2data-test|task-0] [Consumer clientId=connector-consumer-raw2data-test-0, groupId=connect-raw2data-test] Fetch position FetchPosition{offset=10, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[broker:29092 (id: 1 rack: null)], epoch=0}} is out of range for partition customer-raw-2, resetting offset (org.apache.kafka.clients.consumer.internals.Fetcher:1400)
+[2024-05-30 21:13:40,804] INFO [raw2data-test|task-0] [Consumer clientId=connector-consumer-raw2data-test-0, groupId=connect-raw2data-test] Resetting offset for partition customer-raw-2 to position FetchPosition{offset=15, offsetEpoch=Optional.empty, currentLeader=LeaderAndEpoch{leader=Optional[broker:29092 (id: 1 rack: null)], epoch=0}}. (org.apache.kafka.clients.consumer.internals.SubscriptionState:399)
+[2024-05-30 21:14:18,647] INFO [Worker clientId=connect-1, groupId=kafka-connect] Resetting the last seen epoch of partition customer-data-0 to 0 since the associated topicId changed from null to 2y-7lGvcT1GJSbyXhmODwg (org.apache.kafka.clients.Metadata:402)
+[2024-05-30 21:14:18,647] INFO [Worker clientId=connect-1, groupId=kafka-connect] Resetting the last seen epoch of partition customer-data-1 to 0 since the associated topicId changed from null to 2y-7lGvcT1GJSbyXhmODwg (org.apache.kafka.clients.Metadata:402)
+[2024-05-30 21:14:18,647] INFO [Worker clientId=connect-1, groupId=kafka-connect] Resetting the last seen epoch of partition customer-data-2 to 0 since the associated topicId changed from null to 2y-7lGvcT1GJSbyXhmODwg (org.apache.kafka.clients.Metadata:402)
+
+
+
+
+
+trick, keep the rety interval greather than max.block.ts,
+
+so that the producer instance is not closed  and the flush method is blocked...
+
+This ensure we start from
+
+
+offset.flush.interval.ms  default set to 60000 ms or 1 min.
+
+"kafka.producer.configs": "key.serializer=io.confluent.kafka.serializers.KafkaAvroSerializer,value.serializer=io.confluent.kafka.serializers.KafkaAvroSerializer,acks=all,retries=50,retry.backoff.ms=1000,max.block.ms=30000,request.timeout.ms=30000,delivery.timeout.ms=120000,enable.idempotence=true,max.in.flight.requests.per.connection=3",
+
+
+1.
+If conflicting configuration passed: and idempotence is expolitly set to true, we get below error
+Caused by: org.apache.kafka.common.config.ConfigException: Must set max.in.flight.requests.per.connection to at most 5 to use the idempotent producer.
+        at org.apache.kafka.clients.producer.ProducerConfig.postProcessAndValidateIdempotenceConfigs(ProducerConfig.java:533)
+
+		so set idempotence explicitly otherise, it will be silently disbaled.
+
+		2. After request.timeout.ms default to 30 seconds, expires, the producer will get to retry mode.
+
+		3. the producer will give up when delivery.timeout.ms is reached, this should be greater than sum of linger.ms defaults 0 & request.time.out.ms which is 30 seocnds.
+
+		and less than offset.flush.interval which is default of 1 mins.
+
+		max.block.ms ---
